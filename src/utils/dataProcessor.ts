@@ -6,13 +6,27 @@ export const parseCSVData = (csvContent: string): Promise<BugData[]> => {
   return new Promise((resolve, reject) => {
     Papa.parse(csvContent, {
       header: true,
-      skipEmptyLines: true,
+      delimiter: ',',
+      skipEmptyLines: 'greedy',
+      transformHeader: (header) => header.trim(),
+      transform: (value) => value.trim(),
       complete: (results) => {
         if (results.errors.length > 0) {
-          reject(new Error('CSV parsing error: ' + results.errors[0].message));
-        } else {
-          resolve(results.data as BugData[]);
+          console.warn('CSV parsing warnings:', results.errors);
+          // Only reject if there are critical errors, not warnings
+          const criticalErrors = results.errors.filter(error => error.type === 'Delimiter');
+          if (criticalErrors.length > 0) {
+            reject(new Error('CSV parsing error: ' + criticalErrors[0].message));
+            return;
+          }
         }
+        
+        if (!results.data || results.data.length === 0) {
+          reject(new Error('No data found in CSV file'));
+          return;
+        }
+        
+        resolve(results.data as BugData[]);
       },
       error: (error) => {
         reject(error);
