@@ -8,9 +8,17 @@ export const parseCSVData = (csvContent: string): Promise<BugData[]> => {
       header: true,
       delimiter: ',',
       skipEmptyLines: 'greedy',
-      transformHeader: (header) => header.trim(),
-      transform: (value) => value.trim(),
+      transformHeader: (header) => {
+        // Clean header but maintain exact field names expected by BugData interface
+        const cleanHeader = header.trim();
+        console.log('Processing header:', cleanHeader);
+        return cleanHeader;
+      },
+      transform: (value) => value ? String(value).trim() : '',
       complete: (results) => {
+        console.log('CSV parsing completed. Rows found:', results.data?.length);
+        console.log('Headers found:', results.meta?.fields);
+        
         if (results.errors.length > 0) {
           console.warn('CSV parsing warnings:', results.errors);
           // Only reject if there are critical errors, not warnings
@@ -26,9 +34,17 @@ export const parseCSVData = (csvContent: string): Promise<BugData[]> => {
           return;
         }
         
+        // Log sample data to debug field mapping
+        if (results.data.length > 0) {
+          console.log('Sample row data:', results.data[0]);
+          console.log('Status field value:', (results.data[0] as any)?.Status);
+          console.log('Priority field value:', (results.data[0] as any)?.Priority);
+        }
+        
         resolve(results.data as BugData[]);
       },
       error: (error) => {
+        console.error('CSV parsing error:', error);
         reject(error);
       }
     });
@@ -79,7 +95,7 @@ const parseDate = (dateString: string | null | undefined): Date | null => {
 
 // Helper function to safely get string values
 const safeStringValue = (value: any): string => {
-  if (!value) return '';
+  if (!value || value === null || value === undefined) return '';
   return String(value).trim();
 };
 
@@ -91,16 +107,25 @@ const isClosedStatus = (status: string): boolean => {
 
 export const calculateMetrics = (data: BugData[]): DashboardMetrics => {
   if (!Array.isArray(data) || data.length === 0) {
+    console.log('No data provided to calculateMetrics');
     return { openBugs: 0, incomingBugs: 0, outgoingBugs: 0, highPriorityBugs: 0 };
   }
 
+  console.log('Calculating metrics for', data.length, 'bugs');
+  console.log('Sample bug data structure:', Object.keys(data[0] || {}));
+  
   const aug1_2025 = new Date('2025-08-01');
   
   try {
     // Open bugs: All bugs except those with closed/non-active statuses
-    const openBugs = data.filter(bug => 
-      bug && !isClosedStatus(bug.Status)
-    ).length;
+    const openBugs = data.filter(bug => {
+      if (!bug) return false;
+      const status = safeStringValue(bug.Status);
+      const isClosed = isClosedStatus(status);
+      return !isClosed;
+    }).length;
+    
+    console.log('Open bugs calculated:', openBugs);
     
     // Incoming bugs: Created since Aug 1, 2025
     const incomingBugs = data.filter(bug => {
