@@ -41,7 +41,7 @@ function App() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/isuses_sep_2 - Sheet1.csv');
+      const response = await fetch('/bug-data.csv');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
